@@ -5,7 +5,9 @@ import time
 import os
 import sys
 import argparse
+from networks import mobile_hair,pspnet
 from PIL import Image
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from networks import get_network
@@ -24,12 +26,12 @@ def has_img_ext(fname):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt_dir', help='path to ckpt file',type=str,
-            default='./models/pspnet_resnet101_sgd_lr_0.002_epoch_100_test_iou_0.918.pth')
-    parser.add_argument('--img_dir', help='path to image files', type=str, default='./data/Figaro1k')
-    parser.add_argument('--networks', help='name of neural network', type=str, default='pspnet_resnet101')
+            default='./models/mobilenet_state')
+    parser.add_argument('--img_dir', help='path to image files', type=str, default='./images')
+    parser.add_argument('--networks', help='name of neural network', type=str, default='mobilenet')
     parser.add_argument('--save_dir', default='./overlay',
             help='path to save overlay images')
-    parser.add_argument('--use_gpu', type=str2bool, default=True,
+    parser.add_argument('--use_gpu', type=str2bool, default=False,
             help='True if using gpu during inference')
 
     args = parser.parse_args()
@@ -48,9 +50,15 @@ if __name__ == '__main__':
 
     # prepare network with trained parameters
     net = get_network(network).to(device)
-    state = torch.load(ckpt_dir)
-    net.load_state_dict(state['weight'])
-
+    #print(net)
+    model = mobile_hair.MobileMattingFCN()
+    #print(model)
+    model.load_state_dict(torch.load(ckpt_dir))
+    #print(ckpt_dir)
+    #state = torch.load_state_dict(ckpt_dir)
+    #state = model
+    #net.load_state_dict(state['weight'])
+    print(model)
 
     test_image_transforms = std_trnsf.Compose([
         std_trnsf.ToTensor(),
@@ -62,18 +70,34 @@ if __name__ == '__main__':
 
     # prepare images
     img_paths = [os.path.join(img_dir, k) for k in sorted(os.listdir(img_dir)) if has_img_ext(k)]
+    print(os.listdir(img_dir))
+    print(os.listdir(img_dir)[0])
     with torch.no_grad():
+        print("inside")
+        #img_paths = os.path.join(img_dir,os.listdir(img_dir)[0])
+        
+        #print(img_paths)
+
         for i, img_path in enumerate(img_paths, 1):
+            print(i)
             print('[{:3d}/{:3d}] processing image... '.format(i, len(img_paths)))
-            img = Image.open(img_path)
+            
+            print(img_path)
+
+            img = Image.open(img_path).convert('RGB')
             data = test_image_transforms(img)
             data = torch.unsqueeze(data, dim=0)
-            net.eval()
+            model.eval()
             data = data.to(device)
+
+            
+            print(data)
+            print(type(data))
+            print(data.shape)
 
             # inference
             start = time.time()
-            logit = net(data)
+            logit = model(data)
             duration = time.time() - start
 
             # prepare mask
